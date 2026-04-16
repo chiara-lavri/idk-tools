@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coordinate Navigator</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&display=swap');
+
+  :root {
+    --bg: #0e0e0e;
+    --surface: #171717;
+    --border: #2a2a2a;
+    --accent: #c8a96e;
+    --accent-dim: #7a6340;
+    --text: #e8e0d0;
+    --text-dim: #8a8070;
+    --text-muted: #4a4540;
+    --green: #6db38a;
+    --red: #c47a6a;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Libre Baskerville', Georgia, serif;
+    min-height: 100vh;
+    padding: 2rem 1.5rem;
+    line-height: 1.6;
+    max-width: 720px;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  h1 {
+    font-family: 'Courier Prime', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.75rem;
+  }
+
+  h1 span { color: var(--text-dim); font-weight: 400; }
+
+  .blurb {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.7;
+    font-style: italic;
+  }
+
+  h2 {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  h3 {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .coord-live {
+    font-family: 'Courier Prime', monospace;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--accent);
+    margin-bottom: 1.25rem;
+    letter-spacing: 0.04em;
+    min-height: 2rem;
+    line-height: 1.5;
+  }
+
+  .coord-live .sep { color: var(--text-muted); margin: 0 0.5rem; font-size: 1rem; }
+  .coord-live .placeholder { color: var(--text-muted); font-size: 0.95rem; font-weight: 400; }
+
+  .axis-block {
+    margin-bottom: 1.25rem;
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .axis-block:last-of-type {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+  }
+
+  .field-row {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .field-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+  }
+
+  .field-wrap label {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  input[type="number"] {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.3rem;
+    width: 3.2rem;
+    text-align: center;
+    -moz-appearance: textfield;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+
+  input[type="number"]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: var(--accent);
+  }
+
+  select {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 0.35rem 0.3rem;
+    cursor: pointer;
+    align-self: flex-end;
+  }
+
+  select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  /* Vertical nudge column (latitude) */
+  .nudge-vert {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    align-self: flex-end;
+    padding-bottom: 0.05rem;
+  }
+
+  .nudge-vert-label {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+  button {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    min-width: 1.8rem;
+    text-align: center;
+    line-height: 1.2;
+  }
+
+  button:hover, button:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  button:active { opacity: 0.7; }
+  button.dec { color: var(--red); }
+  button.inc { color: var(--green); }
+
+  .search-row {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  input[type="text"] {
+    font-family: 'Libre Baskerville', Georgia, serif;
+    font-size: 0.9rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    padding: 0.4rem 0.6rem;
+    flex: 1;
+  }
+
+  input[type="text"]:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: var(--accent);
+  }
+
+  button.search-btn {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+    padding: 0.4rem 0.9rem;
+  }
+
+  button.search-btn:hover, button.search-btn:focus {
+    background: var(--accent);
+    color: var(--bg);
+    border-color: var(--accent);
+    outline: none;
+  }
+
+  .search-results {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  button.result-item {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 400;
+    font-family: 'Libre Baskerville', Georgia, serif;
+    color: var(--text-dim);
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    line-height: 1.4;
+  }
+
+  button.result-item:hover, button.result-item:focus {
+    background: var(--bg);
+    border-color: var(--accent);
+    color: var(--text);
+    outline: none;
+  }
+
+  .result-coords {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+  }
+
+  button.result-item:hover .result-coords,
+  button.result-item:focus .result-coords { color: var(--accent-dim); }
+
+  .result-status {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+  }
+
+  .result-status.loading { color: var(--accent-dim); }
+  .result-status.success { color: var(--green); }
+  .result-status.error   { color: var(--red); }
+
+  .result-place {
+    font-size: 1rem;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 0.3rem;
+  }
+
+  .result-detail {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-bottom: 0.5rem;
+  }
+
+  .result-dms {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.85rem;
+    color: var(--accent);
+    margin-top: 0.75rem;
+    letter-spacing: 0.03em;
+  }
+
+  .result-decimal {
+    font-family: 'Courier Prime', monospace;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+  }
+
+  #sr-live {
+    position: absolute;
+    left: -9999px;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+</style>
+</head>
+<body>
+
+<div aria-live="polite" aria-atomic="true" id="sr-live"></div>
+
+<header>
+  <h1>Coordinate Navigator <span>// text only</span></h1>
+  <p class="blurb">Enter latitude and longitude using the fields and nudge buttons below, or type a place name into the search box to find matching coordinates. There are no maps, no images, and no visual output of any kind — all results appear as plain text only, and the tool is screen reader accessible throughout. Geocoding is handled by Nominatim, OpenStreetMap's free reverse and forward geocoding service, which converts between coordinates and place names using OpenStreetMap's open geographic database. Reverse geocoding takes a latitude and longitude and returns the nearest named location; forward geocoding takes a place name and returns up to 50 matching results with their coordinates, which can be loaded directly into the fields.</p>
+</header>
+
+<div class="coord-live" id="coord-live" aria-label="Current coordinates">
+  <span class="placeholder">No coordinates entered yet.</span>
+</div>
+
+<!-- COORDINATE INPUT -->
+<section class="panel" aria-labelledby="coord-heading">
+  <h2 id="coord-heading">Coordinates</h2>
+
+  <!-- Latitude: ↓ box ↑ per field -->
+  <div class="axis-block" role="group" aria-labelledby="lat-heading">
+    <h3 id="lat-heading">Latitude</h3>
+    <div class="field-row">
+
+      <div class="nudge-vert">
+        <span class="nudge-vert-label">Deg</span>
+        <button class="dec" onclick="nudge('lat','deg',-1)" aria-label="Latitude degrees decrease">↓</button>
+      </div>
+      <div class="field-wrap">
+        <label for="lat-deg">Degrees</label>
+        <input type="number" id="lat-deg" min="0" max="90" aria-label="Latitude degrees" oninput="syncFields()">
+      </div>
+      <div class="nudge-vert">
+        <span class="nudge-vert-label">&nbsp;</span>
+        <button class="inc" onclick="nudge('lat','deg',1)" aria-label="Latitude degrees increase">↑</button>
+      </div>
+
+      <div class="nudge-vert">
+        <span class="nudge-vert-label">Min</span>
+        <button class="dec" onclick="nudge('lat','min',-1)" aria-label="Latitude minutes decrease">↓</button>
+      </div>
+      <div class="field-wrap">
+        <label for="lat-min">Minutes</label>
+        <input type="number" id="lat-min" min="0" max="59" aria-label="Latitude arcminutes" oninput="syncFields()">
+      </div>
+      <div class="nudge-vert">
+        <span class="nudge-vert-label">&nbsp;</span>
+        <button class="inc" onclick="nudge('lat','min',1)" aria-label="Latitude minutes increase">↑</button>
+      </div>
+
+      <div class="nudge-vert">
+        <span class="nudge-vert-label">Sec</span>
+        <button class="dec" onclick="nudge('lat','sec',-1)" aria-label="Latitude seconds decrease">↓</button>
+      </div>
+      <div class="field-wrap">
+        <label for="lat-sec">Seconds</label>
+        <input type="number" id="lat-sec" min="0" max="59" aria-label="Latitude arcseconds" oninput="syncFields()">
+      </div>
+      <div class="nudge-vert">
+        <span class="nudge-vert-label">&nbsp;</span>
+        <button class="inc" onclick="nudge('lat','sec',1)" aria-label="Latitude seconds increase">↑</button>
+      </div>
+
+      <div class="field-wrap">
+        <label for="lat-dir">Dir</label>
+        <select id="lat-dir" aria-label="Latitude direction" onchange="syncFields()">
+          <option value="N">N</option>
+          <option value="S">S</option>
+        </select>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Longitude: ← box → per field -->
+  <div class="axis-block" role="group" aria-labelledby="lng-heading">
+    <h3 id="lng-heading">Longitude</h3>
+    <div class="field-row">
+
+      <button class="dec" onclick="nudge('lng','deg',-1)" aria-label="Longitude degrees decrease">←</button>
+      <div class="field-wrap">
+        <label for="lng-deg">Degrees</label>
+        <input type="number" id="lng-deg" min="0" max="180" aria-label="Longitude degrees" oninput="syncFields()">
+      </div>
+      <button class="inc" onclick="nudge('lng','deg',1)" aria-label="Longitude degrees increase">→</button>
+
+      <button class="dec" onclick="nudge('lng','min',-1)" aria-label="Longitude minutes decrease">←</button>
+      <div class="field-wrap">
+        <label for="lng-min">Minutes</label>
+        <input type="number" id="lng-min" min="0" max="59" aria-label="Longitude arcminutes" oninput="syncFields()">
+      </div>
+      <button class="inc" onclick="nudge('lng','min',1)" aria-label="Longitude minutes increase">→</button>
+
+      <button class="dec" onclick="nudge('lng','sec',-1)" aria-label="Longitude seconds decrease">←</button>
+      <div class="field-wrap">
+        <label for="lng-sec">Seconds</label>
+        <input type="number" id="lng-sec" min="0" max="59" aria-label="Longitude arcseconds" oninput="syncFields()">
+      </div>
+      <button class="inc" onclick="nudge('lng','sec',1)" aria-label="Longitude seconds increase">→</button>
+
+      <div class="field-wrap">
+        <label for="lng-dir">Dir</label>
+        <select id="lng-dir" aria-label="Longitude direction" onchange="syncFields()">
+          <option value="E">E</option>
+          <option value="W">W</option>
+        </select>
+      </div>
+
+    </div>
+  </div>
+
+</section>
+
+<!-- PLACE SEARCH -->
+<section class="panel" aria-labelledby="search-heading">
+  <h2 id="search-heading">Search by place name</h2>
+  <div class="search-row">
+    <input type="text" id="place-input"
+           aria-label="Place name"
+           onkeydown="if(event.key==='Enter') doPlaceSearch()">
+    <button class="search-btn" onclick="doPlaceSearch()">Search</button>
+  </div>
+  <div class="search-results" id="search-results"
+       role="list" aria-label="Search results" aria-live="polite"></div>
+</section>
+
+<!-- REVERSE RESULT -->
+<section class="panel" aria-labelledby="result-heading">
+  <h2 id="result-heading">Location result</h2>
+  <div class="result-status" id="result-status">READY</div>
+  <div class="result-place" id="result-place" aria-live="polite">Enter coordinates or search a place name above.</div>
+  <div class="result-detail" id="result-detail"></div>
+  <div class="result-dms" id="result-dms"></div>
+  <div class="result-decimal" id="result-decimal"></div>
+</section>
+
+<script>
+  let reverseTimer = null;
+  let cache = {};
+
+  function getF() {
+    return {
+      latDeg: document.getElementById('lat-deg').value,
+      latMin: document.getElementById('lat-min').value,
+      latSec: document.getElementById('lat-sec').value,
+      latDir: document.getElementById('lat-dir').value,
+      lngDeg: document.getElementById('lng-deg').value,
+      lngMin: document.getElementById('lng-min').value,
+      lngSec: document.getElementById('lng-sec').value,
+      lngDir: document.getElementById('lng-dir').value,
+    };
+  }
+
+  function hasValues() {
+    const f = getF();
+    return f.latDeg !== '' || f.lngDeg !== '';
+  }
+
+  // Load coordinates from place search result (no seconds available from Nominatim,
+  // so seconds are set to 0 and the fractional minutes are absorbed into seconds)
+  function setF(ld, lm, ls, ldir, ngd, ngm, ngs, ngdir) {
+    document.getElementById('lat-deg').value = ld;
+    document.getElementById('lat-min').value = lm;
+    document.getElementById('lat-sec').value = ls;
+    document.getElementById('lat-dir').value = ldir;
+    document.getElementById('lng-deg').value = ngd;
+    document.getElementById('lng-min').value = ngm;
+    document.getElementById('lng-sec').value = ngs;
+    document.getElementById('lng-dir').value = ngdir;
+    syncFields();
+  }
+
+  function nudge(axis, part, delta) {
+    const dId = axis+'-deg', mId = axis+'-min', sId = axis+'-sec';
+    let deg = parseInt(document.getElementById(dId).value) || 0;
+    let min = parseInt(document.getElementById(mId).value) || 0;
+    let sec = parseInt(document.getElementById(sId).value) || 0;
+    const max = axis === 'lat' ? 90 : 180;
+
+    if (part === 'deg') {
+      deg = Math.max(0, Math.min(max, deg + delta));
+    } else if (part === 'min') {
+      min += delta;
+      if (min >= 60) { deg = Math.min(max, deg + 1); min = 0; }
+      if (min < 0)   { deg = Math.max(0, deg - 1);   min = 59; }
+    } else if (part === 'sec') {
+      sec += delta;
+      if (sec >= 60) { min++; sec = 0;
+        if (min >= 60) { deg = Math.min(max, deg + 1); min = 0; }
+      }
+      if (sec < 0) { min--; sec = 59;
+        if (min < 0) { deg = Math.max(0, deg - 1); min = 59; }
+      }
+    }
+
+    document.getElementById(dId).value = deg;
+    document.getElementById(mId).value = min;
+    document.getElementById(sId).value = sec;
+    syncFields();
+  }
+
+  function syncFields() {
+    const f = getF();
+    if (!hasValues()) {
+      document.getElementById('coord-live').innerHTML =
+        '<span class="placeholder">No coordinates entered yet.</span>';
+      document.getElementById('result-dms').textContent = '';
+      document.getElementById('result-decimal').textContent = '';
+      return;
+    }
+    const ld = f.latDeg || '0';
+    const lm = String(f.latMin || '0').padStart(2,'0');
+    const ls = String(f.latSec || '0').padStart(2,'0');
+    const ngd = f.lngDeg || '0';
+    const ngm = String(f.lngMin || '0').padStart(2,'0');
+    const ngs = String(f.lngSec || '0').padStart(2,'0');
+    const dmsStr = `${ld}°${lm}'${ls}"${f.latDir} // ${ngd}°${ngm}'${ngs}"${f.lngDir}`;
+    document.getElementById('coord-live').innerHTML =
+      dmsStr.replace(' // ', '<span class="sep"> // </span>');
+    scheduleReverse();
+  }
+
+  function scheduleReverse() {
+    clearTimeout(reverseTimer);
+    setResult('loading', 'LOOKING UP…', '', '');
+    reverseTimer = setTimeout(doReverse, 850);
+  }
+
+  // Convert degrees/minutes/seconds + direction to decimal
+  function toDecimal(deg, min, sec, dir) {
+    let d = (parseInt(deg) || 0)
+          + (parseInt(min) || 0) / 60
+          + (parseInt(sec) || 0) / 3600;
+    if (dir === 'S' || dir === 'W') d = -d;
+    return d;
+  }
+
+  async function doReverse() {
+    const f = getF();
+    const lat = toDecimal(f.latDeg, f.latMin, f.latSec, f.latDir);
+    const lng = toDecimal(f.lngDeg, f.lngMin, f.lngSec, f.lngDir);
+    const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+    if (cache[key]) { showReverse(cache[key]); return; }
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      cache[key] = d;
+      showReverse(d);
+    } catch {
+      setResult('error', 'ERROR',
+        'Could not reach geocoding service.',
+        'Open this file directly in your browser.');
+      document.getElementById('result-dms').textContent = '';
+      document.getElementById('result-decimal').textContent = '';
+    }
+  }
+
+  function showReverse(data) {
+    if (!data || data.error) {
+      setResult('error', 'NO RESULT',
+        'No location found at these coordinates.',
+        'May be ocean, ice, or uninhabited area.');
+      document.getElementById('result-dms').textContent = '';
+      document.getElementById('result-decimal').textContent = '';
+      return;
+    }
+    const a = data.address || {};
+    const streetParts = [a.house_number, a.road || a.pedestrian || a.path || a.footway].filter(Boolean);
+    const street = streetParts.join(' ');
+    const localParts = [
+      a.neighbourhood || a.suburb || a.quarter,
+      a.city_district || a.borough,
+      a.city || a.town || a.village || a.hamlet || a.county,
+    ].filter(Boolean);
+    const regionParts = [a.postcode, a.state || a.region, a.country].filter(Boolean);
+    const primary = street || localParts.join(', ') || data.display_name;
+    const detailParts = [];
+    if (street && localParts.length) detailParts.push(localParts.join(', '));
+    if (regionParts.length) detailParts.push(regionParts.join(', '));
+    const f = getF();
+    const latDec = toDecimal(f.latDeg, f.latMin, f.latSec, f.latDir);
+    const lngDec = toDecimal(f.lngDeg, f.lngMin, f.lngSec, f.lngDir);
+    const ld = f.latDeg || '0';
+    const lm = String(f.latMin || '0').padStart(2,'0');
+    const ls = String(f.latSec || '0').padStart(2,'0');
+    const ngd = f.lngDeg || '0';
+    const ngm = String(f.lngMin || '0').padStart(2,'0');
+    const ngs = String(f.lngSec || '0').padStart(2,'0');
+    const dmsStr = `${ld}°${lm}'${ls}"${f.latDir} // ${ngd}°${ngm}'${ngs}"${f.lngDir}`;
+    const decStr = `${latDec.toFixed(5)}, ${lngDec.toFixed(5)}`;
+    setResult('success', 'FOUND', primary, detailParts.join(' — '));
+    document.getElementById('result-dms').textContent = dmsStr;
+    document.getElementById('result-decimal').textContent = decStr;
+  }
+
+  async function doPlaceSearch() {
+    const q = document.getElementById('place-input').value.trim();
+    if (!q) return;
+    const el = document.getElementById('search-results');
+    el.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);font-family:\'Courier Prime\',monospace;padding:0.25rem 0;">Searching…</div>';
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=50&accept-language=en`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+      if (!r.ok) throw new Error();
+      const results = await r.json();
+      if (!results.length) {
+        el.innerHTML = '<div style="font-size:0.8rem;color:var(--red);font-family:\'Courier Prime\',monospace;padding:0.25rem 0;">No results found.</div>';
+        announce('No results found for ' + q);
+        return;
+      }
+      el.innerHTML = '';
+      results.forEach(res => {
+        const lat = parseFloat(res.lat), lng = parseFloat(res.lon);
+        const ldir = lat >= 0 ? 'N' : 'S';
+        const ngdir = lng >= 0 ? 'E' : 'W';
+        const alat = Math.abs(lat), alng = Math.abs(lng);
+
+        // Convert decimal to deg/min/sec
+        const ld  = Math.floor(alat);
+        const lmF = (alat - ld) * 60;
+        const lm  = Math.floor(lmF);
+        const ls  = Math.round((lmF - lm) * 60);
+
+        const ngd  = Math.floor(alng);
+        const ngmF = (alng - ngd) * 60;
+        const ngm  = Math.floor(ngmF);
+        const ngs  = Math.round((ngmF - ngm) * 60);
+
+        const cStr = `${ld}°${String(lm).padStart(2,'0')}'${String(ls).padStart(2,'0')}"${ldir} // ${ngd}°${String(ngm).padStart(2,'0')}'${String(ngs).padStart(2,'0')}"${ngdir}`;
+        const btn = document.createElement('button');
+        btn.className = 'result-item';
+        btn.setAttribute('role', 'listitem');
+        btn.setAttribute('aria-label', `Load ${res.display_name}, ${cStr}`);
+        btn.innerHTML = `<span>${res.display_name}</span><span class="result-coords">${cStr}</span>`;
+        btn.onclick = () => {
+          setF(ld, lm, ls, ldir, ngd, ngm, ngs, ngdir);
+          el.innerHTML = '';
+          document.getElementById('place-input').value = '';
+        };
+        el.appendChild(btn);
+      });
+      announce(`${results.length} results for ${q}. Tab through to select one.`);
+    } catch {
+      el.innerHTML = '<div style="font-size:0.8rem;color:var(--red);font-family:\'Courier Prime\',monospace;padding:0.25rem 0;">Search failed. Check your connection.</div>';
+    }
+  }
+
+  function setResult(type, status, place, detail) {
+    document.getElementById('result-status').className = 'result-status ' + type;
+    document.getElementById('result-status').textContent = status;
+    document.getElementById('result-place').textContent = place;
+    document.getElementById('result-detail').textContent = detail;
+    if (place) announce(place + (detail ? '. ' + detail : ''));
+  }
+
+  function announce(msg) {
+    const el = document.getElementById('sr-live');
+    el.textContent = '';
+    setTimeout(() => { el.textContent = msg; }, 60);
+  }
+</script>
+</body>
+</html>
