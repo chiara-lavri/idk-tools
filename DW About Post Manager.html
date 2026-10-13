@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sig Link Manager</title>
+<style>
+  :root{
+    --bg:#fdfcfb; --fg:#1f1b1a; --line:#d8d0cb; --accent:#7a4a3a; --field:#fff;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){--bg:#1b1716;--fg:#f1ece9;--line:#4a413d;--accent:#e0a988;--field:#2a2422;}
+  }
+  :root[data-theme="dark"]{--bg:#1b1716;--fg:#f1ece9;--line:#4a413d;--accent:#e0a988;--field:#2a2422;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:Georgia,"Times New Roman",serif;line-height:1.5;}
+  main{max-width:640px;margin:0 auto;padding:1.5rem 1rem 3rem;}
+  h1{font-size:1.3rem;margin:0 0 .25rem;}
+  p.lead{margin:0 0 1.5rem;opacity:.8;font-size:.95rem;}
+  fieldset{border:1px solid var(--line);border-radius:10px;padding:1rem;margin:0 0 1.5rem;}
+  legend{padding:0 .4rem;font-weight:bold;}
+  label{display:block;font-size:.85rem;margin:.6rem 0 .2rem;}
+  input[type=text],input[type=url],select{
+    width:100%;padding:.5rem;border:1px solid var(--line);border-radius:6px;
+    background:var(--field);color:var(--fg);font:inherit;font-size:.95rem;
+  }
+  button{
+    font:inherit;font-size:.9rem;border:1px solid var(--accent);background:transparent;color:var(--accent);
+    padding:.5rem .9rem;border-radius:6px;cursor:pointer;margin-top:.75rem;
+  }
+  button:hover,button:focus{background:var(--accent);color:var(--bg);}
+  button.danger{border-color:#a35;color:#c55;}
+  button.danger:hover,button.danger:focus{background:#c55;color:#fff;}
+  ul.entries{list-style:none;margin:1rem 0 0;padding:0;}
+  ul.entries li{
+    display:flex;justify-content:space-between;align-items:center;gap:.5rem;
+    padding:.4rem 0;border-bottom:1px solid var(--line);font-size:.9rem;
+  }
+  ul.entries li span{overflow-wrap:anywhere;}
+  textarea{
+    width:100%;min-height:9rem;font-family:ui-monospace,Menlo,Consolas,monospace;
+    font-size:.8rem;padding:.6rem;border:1px solid var(--line);border-radius:6px;
+    background:var(--field);color:var(--fg);
+  }
+  .status{font-size:.85rem;min-height:1.2em;margin-top:.4rem;}
+  .status.ok{color:#3a7d44;} .status.err{color:#c55;}
+  hr.rule{border:none;border-top:1px solid var(--line);margin:2rem 0;}
+</style>
+</head>
+<body>
+<main>
+  <h1>Sig Link Manager</h1>
+  <p class="lead">Add a link name and URL below, pick which section it belongs to, and the code at the bottom updates automatically — Links stay alphabetized, Other Events stay in the order you add them. Copy the result into Dreamwidth's HTML entry mode.</p>
+
+  <fieldset>
+    <legend>Add a link</legend>
+    <form id="add-form">
+      <label for="lbl">Link label (what people see)</label>
+      <input type="text" id="lbl" required>
+
+      <label for="url">URL</label>
+      <input type="url" id="url" required placeholder="https://">
+
+      <label for="section">Section</label>
+      <select id="section">
+        <option value="links">My Links (alphabetized)</option>
+        <option value="events">Other Events I've Signed up For</option>
+      </select>
+
+      <button type="submit">Add link</button>
+    </form>
+    <p class="status" id="add-status" role="status"></p>
+  </fieldset>
+
+  <fieldset>
+    <legend>My Links (alphabetical)</legend>
+    <ul class="entries" id="links-list"></ul>
+  </fieldset>
+
+  <fieldset>
+    <legend>Other Events I've Signed up For</legend>
+    <ul class="entries" id="events-list"></ul>
+  </fieldset>
+
+  <hr class="rule">
+
+  <fieldset>
+    <legend>Generated code</legend>
+    <button type="button" id="copy-btn">Copy code</button>
+    <p class="status" id="copy-status" role="status"></p>
+    <label for="output">Paste this into Dreamwidth</label>
+    <textarea id="output" readonly></textarea>
+  </fieldset>
+</main>
+
+<script>
+const STORAGE_KEY = "sig-links-v1";
+
+const defaultData = {
+  links: [
+    ["AO3","https://archiveofourown.org/users/Audrelite/profile"],
+    ["AutoAO3App (Exchange requests)","https://autoao3app.fandom.tools/#/everything/username/Audrelite"],
+    ["Bluesky","https://bsky.app/profile/audrelite.bsky.social"],
+    ["Dreamwidth","https://pitchblackrenegade.dreamwidth.org/"],
+    ["fanfiction.lol","https://fanfiction.lol/users/Audrelite/profile"],
+    ["Sunset","https://sunset.femslash.club/users/Audrelite/profile"],
+    ["Tumblr","https://www.tumblr.com/audrelite"],
+    ["Twitter","https://x.com/audrelite?s=21"]
+  ],
+  events: [
+    ["FandomTrees 2024","https://fandomtrees.dreamwidth.org/147216.html"],
+    ["FandomGiftBasket 2024","https://fandomgiftbasket.dreamwidth.org/76608.html"],
+    ["Valentines Boxes 2025","https://valentines-boxes.dreamwidth.org/1336.html"],
+    ["FandomGiftBasket 2025","https://fandomgiftbasket.dreamwidth.org/103752.html"],
+    ["FandomTrees 2025","https://fandomtrees.dreamwidth.org/186391.html"],
+    ["Sapphic Stocking Stuffers 2025","https://elasticella.dreamwidth.org/94851.html?thread=1027715"],
+    ["Three Sentence Ficathon 2026","https://pitchblackrenegade.dreamwidth.org/10325.html"],
+    ["FandomGiftBasket 2026","https://fandomgiftbasket.dreamwidth.org/136574.html"]
+  ]
+};
+
+let data = loadData();
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ /* ignore, fall back below */ }
+  return JSON.parse(JSON.stringify(defaultData));
+}
+
+function saveData(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+  catch(e){ /* storage unavailable, tool still works this session */ }
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function render(){
+  data.links.sort((a,b) => a[0].localeCompare(b[0], undefined, {sensitivity:"base"}));
+
+  const linksList = document.getElementById("links-list");
+  const eventsList = document.getElementById("events-list");
+  linksList.innerHTML = "";
+  eventsList.innerHTML = "";
+
+  data.links.forEach((entry, i) => linksList.appendChild(makeRow(entry, "links", i)));
+  data.events.forEach((entry, i) => eventsList.appendChild(makeRow(entry, "events", i)));
+
+  buildOutput();
+  saveData();
+}
+
+function makeRow(entry, section, index){
+  const li = document.createElement("li");
+  const span = document.createElement("span");
+  span.textContent = entry[0] + " — " + entry[1];
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "danger";
+  btn.textContent = "Remove";
+  btn.setAttribute("aria-label", "Remove " + entry[0]);
+  btn.addEventListener("click", () => {
+    data[section].splice(index, 1);
+    render();
+  });
+  li.appendChild(span);
+  li.appendChild(btn);
+  return li;
+}
+
+function buildOutput(){
+  const linksHtml = data.links
+    .map(([label,url]) => `<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`)
+    .join(" | ");
+
+  const eventsHtml = data.events
+    .map(([label,url]) => `<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`)
+    .join("\n\n");
+
+  const out = `<details>
+
+<summary><b>My Links</b></summary>
+
+${linksHtml}
+
+Also find me on the Bulbagarden Forums (where I am a mod for the Writers' Workshop), the Thousand Roads Forums, and Serebii Forums. My name is Audrelite on all of these sites.
+
+</details>
+
+<hr>
+
+<details>
+
+<summary><b>Other Events I've Signed up For</b></summary>
+
+I wanted to have a nice little place to store the various events I've signed up for that are not listed within my AutoAO3App page — found <a href="https://autoao3app.fandom.tools/#/everything/username/Audrelite">here</a> — both as a reference and in the event anyone ever wanted to gift me something out of the kindness of their heart.
+
+<hr>
+
+${eventsHtml}
+
+</details>`;
+
+  document.getElementById("output").value = out;
+}
+
+document.getElementById("add-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const lblEl = document.getElementById("lbl");
+  const urlEl = document.getElementById("url");
+  const section = document.getElementById("section").value;
+  const label = lblEl.value.trim();
+  const url = urlEl.value.trim();
+  const status = document.getElementById("add-status");
+
+  if(!label || !url){
+    status.textContent = "Please fill in both fields.";
+    status.className = "status err";
+    return;
+  }
+
+  data[section].push([label, url]);
+  lblEl.value = "";
+  urlEl.value = "";
+  lblEl.focus();
+  status.textContent = `Added "${label}" to ${section === "links" ? "My Links" : "Other Events"}.`;
+  status.className = "status ok";
+  render();
+});
+
+document.getElementById("copy-btn").addEventListener("click", async () => {
+  const status = document.getElementById("copy-status");
+  const text = document.getElementById("output").value;
+  try{
+    await navigator.clipboard.writeText(text);
+    status.textContent = "Copied!";
+    status.className = "status ok";
+  }catch(e){
+    document.getElementById("output").select();
+    status.textContent = "Couldn't auto-copy — text is selected, use your device's copy command.";
+    status.className = "status err";
+  }
+});
+
+render();
+</script>
+</body>
+</html>
