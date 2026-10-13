@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Battle Ranking Tool</title>
+<style>
+  body {
+    font-family: sans-serif;
+    max-width: 780px;
+    margin: 2em auto;
+    padding: 0 1em;
+    line-height: 1.5;
+  }
+  h1 {
+    font-size: 1.3em;
+  }
+  textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 1em;
+  }
+  button {
+    font-size: 1em;
+    padding: 0.5em 1em;
+    cursor: pointer;
+    margin: 0.3em 0.3em 0.3em 0;
+  }
+  .modeOption {
+    border: 1px solid #999;
+    padding: 0.75em;
+    margin-bottom: 0.75em;
+  }
+  #compareSection {
+    border: 1px solid #999;
+    padding: 1em;
+    margin-top: 1em;
+  }
+  #choiceButtons {
+    display: flex;
+    gap: 1em;
+    flex-wrap: wrap;
+    margin: 1em 0;
+  }
+  #choiceButtons button {
+    flex: 1;
+    min-width: 200px;
+    padding: 1em;
+    font-size: 1.05em;
+  }
+  #progressStatus {
+    font-weight: bold;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 0.5em;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 0.4em 0.6em;
+    text-align: left;
+  }
+  #copyCommaStatus, #copyLineStatus {
+    margin-left: 0.75em;
+  }
+  .hidden {
+    display: none;
+  }
+  details {
+    margin-top: 1em;
+    border: 1px solid #999;
+    padding: 0.5em 0.75em;
+  }
+</style>
+</head>
+<body>
+
+<h1>Battle Ranking Tool</h1>
+<p>Paste any list below — one item per line, comma-separated, or a mix of both. Then choose how you want to rank it.</p>
+
+<section id="inputSection">
+  <label for="itemInput">Items to rank:</label><br>
+  <textarea id="itemInput" rows="10"></textarea><br>
+  <button id="chooseModeBtn" type="button">Continue</button>
+  <span id="inputStatus" role="status" aria-live="polite"></span>
+</section>
+
+<section id="modeSection" class="hidden">
+  <h2>Choose a ranking style</h2>
+
+  <div class="modeOption">
+    <strong>Round-robin</strong> — every item faces every other item exactly once, then stops automatically and shows you the standings. Thorough, but the total number of matchups grows fast with a long list.
+    <button id="startRoundRobinBtn" type="button">Use Round-robin</button>
+  </div>
+
+  <div class="modeOption">
+    <strong>Elimination bracket</strong> — like a sports tournament: lose once and you're out. Only about one battle per item overall, so it's fast. Items knocked out in the same round end up tied with each other.
+    <button id="startEliminationBtn" type="button">Use Elimination bracket</button>
+  </div>
+
+  <div class="modeOption">
+    <strong>Group stage</strong> — items are split into small groups where everyone in a group faces everyone else in that group. The weaker half of each group is cut, the rest regroup, and it repeats until a small final group settles the top ranks directly. Much fewer battles than a full round-robin, but everyone still gets a fair multi-way comparison instead of a single do-or-die match.
+    <button id="startGroupStageBtn" type="button">Use Group stage</button>
+  </div>
+
+  <button id="backToInputBtn" type="button">Back and edit list</button>
+</section>
+
+<section id="compareSection" class="hidden">
+  <p id="progressStatus" role="status" aria-live="polite"></p>
+  <p>Which do you prefer?</p>
+  <div id="choiceButtons">
+    <button id="choiceA" type="button"></button>
+    <button id="choiceB" type="button"></button>
+  </div>
+  <button id="finishBtn" type="button">Stop here and see standings</button>
+  <button id="cancelBtn" type="button">Cancel and edit list</button>
+
+  <details id="liveStandings">
+    <summary>Live standings (expand to check progress)</summary>
+    <div id="liveTableWrap"></div>
+  </details>
+</section>
+
+<section id="resultSection" class="hidden">
+  <h2 id="resultHeading">Final Standings</h2>
+  <div id="resultTableWrap"></div>
+
+  <h3>Ranked list — comma separated</h3>
+  <p>
+    <button id="copyCommaBtn" type="button">Copy comma list</button>
+    <span id="copyCommaStatus" role="status" aria-live="polite"></span>
+  </p>
+  <label for="outputComma">Comma-separated list (focus this box and press your copy shortcut if the button doesn't work):</label><br>
+  <textarea id="outputComma" rows="4" readonly></textarea>
+
+  <h3>Ranked list — one per line</h3>
+  <p>
+    <button id="copyLineBtn" type="button">Copy line list</button>
+    <span id="copyLineStatus" role="status" aria-live="polite"></span>
+  </p>
+  <label for="outputLine">Line-separated list (focus this box and press your copy shortcut if the button doesn't work):</label><br>
+  <textarea id="outputLine" rows="8" readonly></textarea><br>
+
+  <button id="continueBtn" type="button">Keep battling for more precision</button>
+  <button id="restartBtn" type="button">Rank a new list</button>
+</section>
+
+<script>
+const itemInput = document.getElementById('itemInput');
+const chooseModeBtn = document.getElementById('chooseModeBtn');
+const inputStatus = document.getElementById('inputStatus');
+const inputSection = document.getElementById('inputSection');
+const modeSection = document.getElementById('modeSection');
+const startRoundRobinBtn = document.getElementById('startRoundRobinBtn');
+const startEliminationBtn = document.getElementById('startEliminationBtn');
+const startGroupStageBtn = document.getElementById('startGroupStageBtn');
+const backToInputBtn = document.getElementById('backToInputBtn');
+const compareSection = document.getElementById('compareSection');
+const resultSection = document.getElementById('resultSection');
+const resultHeading = document.getElementById('resultHeading');
+const progressStatus = document.getElementById('progressStatus');
+const choiceA = document.getElementById('choiceA');
+const choiceB = document.getElementById('choiceB');
+const finishBtn = document.getElementById('finishBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+const liveTableWrap = document.getElementById('liveTableWrap');
+const resultTableWrap = document.getElementById('resultTableWrap');
+const outputComma = document.getElementById('outputComma');
+const outputLine = document.getElementById('outputLine');
+const copyCommaBtn = document.getElementById('copyCommaBtn');
+const copyLineBtn = document.getElementById('copyLineBtn');
+const copyCommaStatus = document.getElementById('copyCommaStatus');
+const copyLineStatus = document.getElementById('copyLineStatus');
+const continueBtn = document.getElementById('continueBtn');
+const restartBtn = document.getElementById('restartBtn');
+
+let players = [];       // { name, wins, losses, battles, elo, eliminationRound, gsFinalRank, gsEliminatedStage, gsStageWinAtElimination }
+let mode = null;        // 'roundrobin' | 'elimination' | 'groupstage'
+
+// ---------- shared helpers ----------
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function winPct(p) {
+  if (p.battles === 0) return '—';
+  return Math.round((p.wins / p.battles) * 100) + '%';
+}
+
+function parseItems() {
+  return itemInput.value.split(/[\n,]+/).map(s => s.trim()).filter(s => s.length > 0);
+}
+
+// ---------- input / mode selection ----------
+
+chooseModeBtn.addEventListener('click', function() {
+  const lines = parseItems();
+  if (lines.length < 2) {
+    inputStatus.textContent = 'Please enter at least two items (one per line, or separated by commas).';
+    return;
+  }
+  players = lines.map(name => ({
+    name, wins: 0, losses: 0, battles: 0, elo: 1500,
+    eliminationRound: null, gsFinalRank: null, gsEliminatedStage: null, gsStageWinAtElimination: null
+  }));
+  inputSection.classList.add('hidden');
+  modeSection.classList.remove('hidden');
+});
+
+backToInputBtn.addEventListener('click', function() {
+  modeSection.classList.add('hidden');
+  inputSection.classList.remove('hidden');
+});
+
+startRoundRobinBtn.addEventListener('click', function() {
+  mode = 'roundrobin';
+  modeSection.classList.add('hidden');
+  compareSection.classList.remove('hidden');
+  startRoundRobin();
+});
+
+startEliminationBtn.addEventListener('click', function() {
+  mode = 'elimination';
+  modeSection.classList.add('hidden');
+  compareSection.classList.remove('hidden');
+  startElimination();
+});
+
+startGroupStageBtn.addEventListener('click', function() {
+  mode = 'groupstage';
+  modeSection.classList.add('hidden');
+  compareSection.classList.remove('hidden');
+  startGroupStage();
+});
+
+cancelBtn.addEventListener('click', function() {
+  compareSection.classList.add('hidden');
+  modeSection.classList.remove('hidden');
+});
+
+finishBtn.addEventListener('click', function() {
+  if (mode === 'roundrobin') {
+    finishRoundRobin();
+  } else if (mode === 'elimination') {
+    finishElimination();
+  } else {
+    finishGroupStage(false);
+  }
+});
+
+continueBtn.addEventListener('click', function() {
+  resultSection.classList.add('hidden');
+  compareSection.classList.remove('hidden');
+  if (mode === 'roundrobin') {
+    pairQueue = buildPairQueue();
+    pairIndex = 0;
+    nextRoundRobinBattle();
+  } else if (mode === 'elimination') {
+    nextEliminationMatch();
+  } else {
+    nextGroupMatch();
+  }
+});
+
+restartBtn.addEventListener('click', function() {
+  resultSection.classList.add('hidden');
+  inputSection.classList.remove('hidden');
+  inputStatus.textContent = '';
+});
+
+// ---------- round-robin mode ----------
+
+let pairQueue = [];
+let pairIndex = 0;
+let totalBattlesDone = 0;
+let totalPossiblePairs = 0;
+
+function buildPairQueue() {
+  const n = players.length;
+  const allPairs = [];
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 1; j < n; j++) {
+      allPairs.push([i, j]);
+    }
+  }
+  shuffle(allPairs);
+
+  const cooldown = Math.max(1, Math.floor(n / 3));
+  const lastUsedPos = new Array(n).fill(-Infinity);
+  const queue = [];
+  const remaining = allPairs.slice();
+
+  while (remaining.length > 0) {
+    let chosenIdx = -1;
+    let bestIdx = 0;
+    let bestScore = -Infinity;
+
+    for (let idx = 0; idx < remaining.length; idx++) {
+      const [i, j] = remaining[idx];
+      const distI = queue.length - lastUsedPos[i];
+      const distJ = queue.length - lastUsedPos[j];
+      const minDist = Math.min(distI, distJ);
+
+      if (minDist >= cooldown) {
+        chosenIdx = idx;
+        break;
+      }
+      if (minDist > bestScore) {
+        bestScore = minDist;
+        bestIdx = idx;
+      }
+    }
+
+    if (chosenIdx === -1) chosenIdx = bestIdx;
+
+    const [i, j] = remaining[chosenIdx];
+    remaining.splice(chosenIdx, 1);
+    queue.push([i, j]);
+    lastUsedPos[i] = queue.length - 1;
+    lastUsedPos[j] = queue.length - 1;
+  }
+
+  return queue;
+}
+
+function startRoundRobin() {
+  totalPossiblePairs = players.length * (players.length - 1) / 2;
+  totalBattlesDone = 0;
+  pairQueue = buildPairQueue();
+  pairIndex = 0;
+  nextRoundRobinBattle();
+}
+
+function nextRoundRobinBattle() {
+  if (pairIndex >= pairQueue.length) {
+    finishRoundRobin();
+    return;
+  }
+
+  const [i, j] = pairQueue[pairIndex];
+  const percentDone = Math.min(100, Math.round((totalBattlesDone / totalPossiblePairs) * 100));
+  progressStatus.textContent = 'Battle ' + (totalBattlesDone + 1) + ' — ' +
+    totalBattlesDone + ' of ' + totalPossiblePairs + ' possible unique matchups done (' + percentDone + '%).';
+
+  choiceA.textContent = players[i].name;
+  choiceB.textContent = players[j].name;
+
+  choiceA.onclick = function() { recordRoundRobinResult(i, j); };
+  choiceB.onclick = function() { recordRoundRobinResult(j, i); };
+
+  choiceA.focus();
+  renderLiveStandingsRoundRobin();
+}
+
+function recordRoundRobinResult(winnerIdx, loserIdx) {
+  const winner = players[winnerIdx];
+  const loser = players[loserIdx];
+
+  const expectedWinner = 1 / (1 + Math.pow(10, (loser.elo - winner.elo) / 400));
+  const expectedLoser = 1 - expectedWinner;
+  const K = 32;
+
+  winner.elo = winner.elo + K * (1 - expectedWinner);
+  loser.elo = loser.elo + K * (0 - expectedLoser);
+
+  winner.wins += 1;
+  winner.battles += 1;
+  loser.losses += 1;
+  loser.battles += 1;
+
+  totalBattlesDone += 1;
+  pairIndex += 1;
+
+  nextRoundRobinBattle();
+}
+
+function renderLiveStandingsRoundRobin() {
+  const standings = players.slice().sort((a, b) => b.elo - a.elo);
+  renderStandardTable(liveTableWrap, standings, true);
+}
+
+function finishRoundRobin() {
+  compareSection.classList.add('hidden');
+  resultSection.classList.remove('hidden');
+  resultHeading.textContent = (pairIndex >= pairQueue.length)
+    ? 'Final Standings — every item has faced every other item once'
+    : 'Standings So Far (stopped early)';
+
+  const standings = players.slice().sort((a, b) => b.elo - a.elo);
+  renderStandardTable(resultTableWrap, standings, true);
+
+  const names = standings.map(p => p.name);
+  outputComma.value = names.join(', ');
+  outputLine.value = names.map((name, i) => (i + 1) + '. ' + name).join('\n');
+  copyCommaStatus.textContent = '';
+  copyLineStatus.textContent = '';
+}
+
+function renderStandardTable(container, standings, includeRank) {
+  let html = '<table><thead><tr>';
+  if (includeRank) html += '<th>Rank</th>';
+  html += '<th>Item</th><th>Wins</th><th>Losses</th><th>Battles</th><th>Win %</th></tr></thead><tbody>';
+  standings.forEach((p, idx) => {
+    html += '<tr>';
+    if (includeRank) html += '<td>' + (idx + 1) + '</td>';
+    html += '<td>' + escapeHtml(p.name) + '</td><td>' + p.wins + '</td><td>' + p.losses + '</td><td>' + p.battles + '</td><td>' + winPct(p) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ---------- elimination bracket mode ----------
+
+let elimContenders = [];
+let elimRound = 1;
+let elimTotalRounds = 1;
+let elimMatchQueue = [];
+let elimWinnersThisRound = [];
+let elimMatchIndex = 0;
+let elimChampion = null;
+
+function startElimination() {
+  elimContenders = shuffle(players.map((_, idx) => idx));
+  elimTotalRounds = Math.ceil(Math.log2(players.length));
+  elimRound = 1;
+  elimChampion = null;
+  players.forEach(p => { p.eliminationRound = null; });
+  setupEliminationRound();
+}
+
+function setupEliminationRound() {
+  if (elimContenders.length === 1) {
+    elimChampion = elimContenders[0];
+    finishElimination();
+    return;
+  }
+
+  const shuffled = shuffle(elimContenders.slice());
+  const byes = [];
+  if (shuffled.length % 2 === 1) {
+    byes.push(shuffled.pop());
+  }
+  const pairs = [];
+  for (let i = 0; i < shuffled.length; i += 2) {
+    pairs.push([shuffled[i], shuffled[i + 1]]);
+  }
+
+  elimMatchQueue = pairs;
+  elimWinnersThisRound = byes.slice();
+  elimMatchIndex = 0;
+
+  nextEliminationMatch();
+}
+
+function nextEliminationMatch() {
+  if (elimMatchIndex >= elimMatchQueue.length) {
+    elimContenders = elimWinnersThisRound;
+    elimRound += 1;
+    setupEliminationRound();
+    return;
+  }
+
+  const [i, j] = elimMatchQueue[elimMatchIndex];
+  progressStatus.textContent = 'Round ' + elimRound + ' of ~' + elimTotalRounds + ' — match ' +
+    (elimMatchIndex + 1) + ' of ' + elimMatchQueue.length + ' this round (' + elimContenders.length + ' contenders remaining).';
+
+  choiceA.textContent = players[i].name;
+  choiceB.textContent = players[j].name;
+
+  choiceA.onclick = function() { recordEliminationResult(i, j); };
+  choiceB.onclick = function() { recordEliminationResult(j, i); };
+
+  choiceA.focus();
+  renderLiveStandingsElimination();
+}
+
+function recordEliminationResult(winnerIdx, loserIdx) {
+  players[winnerIdx].wins += 1;
+  players[winnerIdx].battles += 1;
+  players[loserIdx].losses += 1;
+  players[loserIdx].battles += 1;
+  players[loserIdx].eliminationRound = elimRound;
+
+  elimWinnersThisRound.push(winnerIdx);
+  elimMatchIndex += 1;
+
+  nextEliminationMatch();
+}
+
+function buildEliminationStandings() {
+  const list = players.slice();
+
+  list.sort((a, b) => {
+    const aKey = (elimChampion !== null && players[elimChampion] === a) ? Infinity : (a.eliminationRound === null ? Infinity - 1 : a.eliminationRound);
+    const bKey = (elimChampion !== null && players[elimChampion] === b) ? Infinity : (b.eliminationRound === null ? Infinity - 1 : b.eliminationRound);
+    return bKey - aKey;
+  });
+
+  let lastKey = null;
+  let lastRank = 0;
+  const withRank = list.map((p, idx) => {
+    const key = (elimChampion !== null && players[elimChampion] === p) ? 'champion' : (p.eliminationRound === null ? 'active' : p.eliminationRound);
+    let rank;
+    if (key === lastKey) {
+      rank = lastRank;
+    } else {
+      rank = idx + 1;
+      lastRank = rank;
+      lastKey = key;
+    }
+    let stage;
+    if (key === 'champion') {
+      stage = 'Champion';
+    } else if (key === 'active') {
+      stage = 'Still active (unresolved)';
+    } else if (p.eliminationRound === elimTotalRounds) {
+      stage = 'Runner-up (lost final)';
+    } else {
+      stage = 'Eliminated — Round ' + p.eliminationRound;
+    }
+    return { p, rank, stage };
+  });
+
+  return withRank;
+}
+
+function renderLiveStandingsElimination() {
+  const standings = buildEliminationStandings();
+  renderResultStyleTable(liveTableWrap, standings);
+}
+
+function finishElimination() {
+  compareSection.classList.add('hidden');
+  resultSection.classList.remove('hidden');
+  resultHeading.textContent = elimChampion !== null ? 'Final Bracket Results' : 'Bracket Results So Far';
+
+  const standings = buildEliminationStandings();
+  renderResultStyleTable(resultTableWrap, standings);
+
+  const names = standings.map(s => s.p.name);
+  outputComma.value = names.join(', ');
+  outputLine.value = standings.map(s => s.rank + '. ' + s.p.name).join('\n');
+  copyCommaStatus.textContent = '';
+  copyLineStatus.textContent = '';
+}
+
+function renderResultStyleTable(container, standings) {
+  let html = '<table><thead><tr><th>Rank</th><th>Item</th><th>Result</th><th>Wins</th><th>Losses</th></tr></thead><tbody>';
+  standings.forEach(s => {
+    html += '<tr><td>' + s.rank + '</td><td>' + escapeHtml(s.p.name) + '</td><td>' + s.stage + '</td><td>' + s.p.wins + '</td><td>' + s.p.losses + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
+}
+
+// ---------- group stage mode ----------
+
+let gsContenders = [];
+let gsStage = 1;
+let gsGroups = [];
+let gsGroupIndex = 0;
+let gsMatchQueue = [];
+let gsMatchIndex = 0;
+let gsStageWinCount = {};
+let gsFinalRoundActive = false;
+
+function startGroupStage() {
+  gsContenders = shuffle(players.map((_, idx) => idx));
+  gsStage = 1;
+  players.forEach(p => { p.gsFinalRank = null; p.gsEliminatedStage = null; p.gsStageWinAtElimination = null; });
+  setupGroupStageRound();
+}
+
+function setupGroupStageRound() {
+  if (gsContenders.length <= 6) {
+    gsFinalRoundActive = true;
+    gsGroups = [gsContenders.slice()];
+  } else {
+    gsFinalRoundActive = false;
+    const groupSize = 5;
+    const shuffled = shuffle(gsContenders.slice());
+    gsGroups = [];
+    for (let i = 0; i < shuffled.length; i += groupSize) {
+      gsGroups.push(shuffled.slice(i, i + groupSize));
+    }
+    if (gsGroups.length > 1 && gsGroups[gsGroups.length - 1].length < 3) {
+      const last = gsGroups.pop();
+      gsGroups[gsGroups.length - 1] = gsGroups[gsGroups.length - 1].concat(last);
+    }
+  }
+
+  gsGroupIndex = 0;
+  gsStageWinCount = {};
+  gsContenders.forEach(idx => { gsStageWinCount[idx] = 0; });
+  setupGroupMatches();
+}
+
+function setupGroupMatches() {
+  const group = gsGroups[gsGroupIndex];
+  const pairs = [];
+  for (let i = 0; i < group.length; i++) {
+    for (let j = i + 1; j < group.length; j++) {
+      pairs.push([group[i], group[j]]);
+    }
+  }
+  gsMatchQueue = shuffle(pairs);
+  gsMatchIndex = 0;
+  nextGroupMatch();
+}
+
+function nextGroupMatch() {
+  if (gsMatchIndex >= gsMatchQueue.length) {
+    gsGroupIndex += 1;
+    if (gsGroupIndex >= gsGroups.length) {
+      finishGroupRound();
+      return;
+    }
+    setupGroupMatches();
+    return;
+  }
+
+  const [i, j] = gsMatchQueue[gsMatchIndex];
+  const stageLabel = gsFinalRoundActive ? 'Final Round' : 'Stage ' + gsStage;
+  progressStatus.textContent = stageLabel + ' — Group ' + (gsGroupIndex + 1) + ' of ' + gsGroups.length +
+    ' — match ' + (gsMatchIndex + 1) + ' of ' + gsMatchQueue.length + ' (' + gsContenders.length + ' contenders remain overall).';
+
+  choiceA.textContent = players[i].name;
+  choiceB.textContent = players[j].name;
+
+  choiceA.onclick = function() { recordGroupResult(i, j); };
+  choiceB.onclick = function() { recordGroupResult(j, i); };
+
+  choiceA.focus();
+  renderLiveStandingsGroup();
+}
+
+function recordGroupResult(winnerIdx, loserIdx) {
+  players[winnerIdx].wins += 1;
+  players[winnerIdx].battles += 1;
+  players[loserIdx].losses += 1;
+  players[loserIdx].battles += 1;
+  gsStageWinCount[winnerIdx] += 1;
+
+  gsMatchIndex += 1;
+  nextGroupMatch();
+}
+
+function finishGroupRound() {
+  if (gsFinalRoundActive) {
+    const finalOrder = gsContenders.slice().sort((a, b) => gsStageWinCount[b] - gsStageWinCount[a]);
+    finalOrder.forEach((idx, i) => { players[idx].gsFinalRank = i; });
+    finishGroupStage(true);
+    return;
+  }
+
+  let advancing = [];
+  gsGroups.forEach(group => {
+    const sortedGroup = group.slice().sort((a, b) => gsStageWinCount[b] - gsStageWinCount[a]);
+    const advanceCount = Math.max(1, Math.ceil(sortedGroup.length / 2));
+    const advancers = sortedGroup.slice(0, advanceCount);
+    const cut = sortedGroup.slice(advanceCount);
+    advancing = advancing.concat(advancers);
+    cut.forEach(idx => {
+      players[idx].gsEliminatedStage = gsStage;
+      players[idx].gsStageWinAtElimination = gsStageWinCount[idx];
+    });
+  });
+
+  gsContenders = advancing;
+  gsStage += 1;
+  setupGroupStageRound();
+}
+
+function buildGroupStandings() {
+  const list = players.slice();
+
+  list.sort((a, b) => {
+    const aFinal = (a.gsFinalRank !== null && a.gsFinalRank !== undefined);
+    const bFinal = (b.gsFinalRank !== null && b.gsFinalRank !== undefined);
+    if (aFinal && bFinal) return a.gsFinalRank - b.gsFinalRank;
+    if (aFinal) return -1;
+    if (bFinal) return 1;
+
+    const aStage = (a.gsEliminatedStage !== null && a.gsEliminatedStage !== undefined) ? a.gsEliminatedStage : Infinity;
+    const bStage = (b.gsEliminatedStage !== null && b.gsEliminatedStage !== undefined) ? b.gsEliminatedStage : Infinity;
+    if (bStage !== aStage) return bStage - aStage;
+
+    const aWins = a.gsStageWinAtElimination || 0;
+    const bWins = b.gsStageWinAtElimination || 0;
+    return bWins - aWins;
+  });
+
+  let lastKey = null, lastRank = 0;
+  const withRank = list.map((p, idx) => {
+    let key;
+    if (p.gsFinalRank !== null && p.gsFinalRank !== undefined) {
+      key = 'final-' + p.gsFinalRank;
+    } else if (p.gsEliminatedStage !== null && p.gsEliminatedStage !== undefined) {
+      key = 'stage-' + p.gsEliminatedStage + '-' + (p.gsStageWinAtElimination || 0);
+    } else {
+      key = 'active';
+    }
+
+    let rank;
+    if (key === lastKey) {
+      rank = lastRank;
+    } else {
+      rank = idx + 1;
+      lastRank = rank;
+      lastKey = key;
+    }
+
+    let stage;
+    if (p.gsFinalRank !== null && p.gsFinalRank !== undefined) {
+      stage = (p.gsFinalRank === 0) ? 'Champion' : 'Finalist (rank ' + (p.gsFinalRank + 1) + ' of final group)';
+    } else if (p.gsEliminatedStage !== null && p.gsEliminatedStage !== undefined) {
+      stage = 'Cut in Stage ' + p.gsEliminatedStage + ' (' + (p.gsStageWinAtElimination || 0) + ' wins that stage)';
+    } else {
+      stage = 'Still active (unresolved)';
+    }
+
+    return { p, rank, stage };
+  });
+
+  return withRank;
+}
+
+function renderLiveStandingsGroup() {
+  const standings = buildGroupStandings();
+  renderResultStyleTable(liveTableWrap, standings);
+}
+
+function finishGroupStage(complete) {
+  compareSection.classList.add('hidden');
+  resultSection.classList.remove('hidden');
+  resultHeading.textContent = complete
+    ? 'Final Standings — Group Stage complete'
+    : 'Standings So Far (stopped early)';
+
+  const standings = buildGroupStandings();
+  renderResultStyleTable(resultTableWrap, standings);
+
+  const names = standings.map(s => s.p.name);
+  outputComma.value = names.join(', ');
+  outputLine.value = standings.map(s => s.rank + '. ' + s.p.name).join('\n');
+  copyCommaStatus.textContent = '';
+  copyLineStatus.textContent = '';
+}
+
+// ---------- copy buttons ----------
+
+function legacyCopy(textarea) {
+  textarea.focus();
+  textarea.select();
+  try {
+    return document.execCommand('copy');
+  } catch (e) {
+    return false;
+  }
+}
+
+function wireCopyButton(button, textarea, statusEl, label) {
+  button.addEventListener('click', function() {
+    const text = textarea.value;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function() {
+        statusEl.textContent = 'Copied ' + label + ' to clipboard.';
+      }, function() {
+        if (legacyCopy(textarea)) {
+          statusEl.textContent = 'Copied ' + label + ' to clipboard (legacy method).';
+        } else {
+          statusEl.textContent = 'Copy blocked by browser. The text box above is now selected — press your copy shortcut to grab it.';
+        }
+      });
+    } else {
+      if (legacyCopy(textarea)) {
+        statusEl.textContent = 'Copied ' + label + ' to clipboard (legacy method).';
+      } else {
+        statusEl.textContent = 'Copy blocked by browser. The text box above is now selected — press your copy shortcut to grab it.';
+      }
+    }
+  });
+}
+
+wireCopyButton(copyCommaBtn, outputComma, copyCommaStatus, 'comma list');
+wireCopyButton(copyLineBtn, outputLine, copyLineStatus, 'line list');
+</script>
+
+</body>
+</html>
